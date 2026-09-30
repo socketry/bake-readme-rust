@@ -1,3 +1,6 @@
+// Released under the MIT License.
+// Copyright, 2026, by Samuel Williams.
+
 use bake_readme::{
     PackageMetadata, Release, ensure_releases_section, recent_releases, update_document,
     update_document_with_releases,

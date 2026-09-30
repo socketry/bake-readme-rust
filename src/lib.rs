@@ -1,10 +1,12 @@
+// Released under the MIT License.
+// Copyright, 2026, by Samuel Williams.
+
 //! Reusable `readme.md` maintenance tasks for Bake.
 //!
 //! The task adds a short summary of recent entries from `releases.md` when a
 //! project `readme.md` does not already contain an authored Releases section. When
 //! the project root has a Cargo package manifest, it also adds or refreshes a
 //! generated package entry in the `readme.md` See Also section.
-
 mod document;
 mod metadata;
 
