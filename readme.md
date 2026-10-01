@@ -63,6 +63,15 @@ cargo bake agent:context:install --package bake-readme
 <!-- bake-readme:releases:start -->
 See [releases.md](releases.md) for the full release history.
 
+### v0.1.2
+
+- Create or update GitHub Releases after successful crates.io publication.
+- Resolve the local task crate during version updates.
+
+### v0.1.1
+
+- Switch the runtime dependency from `socketry-bake` to `bake` 0.17.0.
+
 ### v0.1.0
 
 - Create the initial `bake-readme` task library and `readme:update` task.
