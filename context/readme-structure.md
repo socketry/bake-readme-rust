@@ -16,12 +16,12 @@ Keep the readme short and arrange sections in the order a new reader needs them:
 
 1. **Project name and summary** — a clear title followed by one or two sentences describing the problem solved and the project's role.
 2. **Motivation (optional)** — include it when explaining the problem and why the project exists would add useful context. Keep it specific and brief.
-3. **Usage** — show installation and one or two small, representative examples. Link to guides for complete examples or less common use cases. If the package publishes agent context, include the standard optional `### Agent Context` block shown below; otherwise omit it.
+3. **Usage** — show installation and one or two small, representative examples. Link to guides for complete examples or less common use cases.
 4. **Releases** — show a short summary of recent releases and link to `releases.md` for the full history. Keep release sections newest first; `bake-readme` summarizes the first three versioned entries and skips `Unreleased`.
 5. **See Also** — link to related projects, APIs, or documentation. For Cargo packages, `bake-readme` can add the package name, description, and repository URL from `Cargo.toml`.
-6. **Contributing** — use the standard short block shown below, with the repository link filled in. Put detailed contribution instructions elsewhere.
+6. **Contributing** — use the standard short block shown below, with the repository link filled in. If the package publishes agent context, add the optional standard `### Agent Context` subsection below it. Put detailed contribution instructions elsewhere.
 
-Motivation and Agent Context are optional. Keep the other sections concise and relevant to helping readers understand, use, or contribute to the project.
+Motivation and the Agent Context subsection are optional. Keep the other sections concise and relevant to helping readers understand, use, or contribute to the project.
 
 ## Keep detail in the right place
 
@@ -44,11 +44,6 @@ Describe the problem and why this project exists.
 
 Show how to install or add the project, then give a small common example.
 
-<!-- Include this subsection only when the crate publishes files in context/. -->
-### Agent Context
-
-This crate publishes context files for coding agents. Configure Bake Agent Context in your private `bake/` crate, then run `cargo bake agent:context:install --package PACKAGE_NAME` to install them in `.agents/context/` and update `agents.md`.
-
 ## Releases
 
 Recent release summaries and a link to `releases.md`.
@@ -60,9 +55,14 @@ Links to related projects or documentation.
 ## Contributing
 
 Please open an issue or pull request on [GitHub](https://github.com/OWNER/REPOSITORY).
+
+<!-- Include this subsection only when the crate publishes files in context/. -->
+### Agent Context
+
+Before contributing, read `agents.md` and the relevant context files it links. If `agents.md` is missing or out of date, run `cargo bake agent:context:install` to install context from dependencies and update the index.
 ```
 
-Replace `PACKAGE_NAME` with the exact Cargo package name and `OWNER/REPOSITORY` with the source repository. The Agent Context paragraph is fixed boilerplate; omit the entire subsection when the crate does not publish context. The Contributing paragraph is also standard boilerplate; retain it for public projects and change only the repository link.
+Replace `OWNER/REPOSITORY` with the source repository. The Agent Context subsection is fixed boilerplate; omit the entire subsection when the crate does not publish context. The Contributing paragraph is also standard boilerplate; retain it for public projects and change only the repository link.
 
 Treat this as a starting point for project-specific summary, motivation, and usage content. Preserve authored wording when running `cargo bake readme:update`; the task only manages marked release summaries and the generated Cargo package entry.
 
