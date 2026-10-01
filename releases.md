@@ -1,5 +1,9 @@
 # Releases
 
+## v0.1.3
+
+- Update generated README sections with Markdown AST nodes while preserving existing package links.
+
 ## v0.1.2
 
 - Create or update GitHub Releases after successful crates.io publication.
