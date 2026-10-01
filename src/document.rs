@@ -1,17 +1,23 @@
 // Released under the MIT License.
 // Copyright, 2026, by Samuel Williams.
 
+use socketry_markdown::{
+    MarkdownOptions, ParseOptions,
+    mdast::{Html, InlineCode, Link, List, ListItem, Node, Paragraph, Text},
+    to_mdast,
+};
 use std::ops::Range;
 
 const RELEASES_SECTION: &str =
     "## Releases\n\nSee [releases.md](releases.md) for the release history.";
 const RELEASES_START: &str = "<!-- bake-readme:releases:start -->";
 const RELEASES_END: &str = "<!-- bake-readme:releases:end -->";
+const PACKAGE_MARKER: &str = "<!-- bake-readme:package -->";
 const RECENT_RELEASE_COUNT: usize = 3;
 
-struct Heading<'document> {
-    title: &'document str,
-    level: usize,
+struct Heading {
+    title: String,
+    level: u8,
     start: usize,
     body_start: usize,
 }
@@ -36,60 +42,58 @@ pub struct Release {
     pub notes: String,
 }
 
-fn headings(document: &str) -> Vec<Heading<'_>> {
+fn parse_markdown(document: &str) -> Option<Node> {
+    to_mdast(document, &ParseOptions::default()).ok()
+}
+
+fn heading_text(node: &Node) -> String {
+    let text = node.text_content();
+    text.strip_suffix("\r\n")
+        .or_else(|| text.strip_suffix('\n'))
+        .or_else(|| text.strip_suffix('\r'))
+        .unwrap_or(text.as_str())
+        .to_owned()
+}
+
+fn after_line_ending(document: &str, offset: usize) -> usize {
+    let Some(rest) = document.get(offset..) else {
+        return offset;
+    };
+
+    if rest.starts_with("\r\n") {
+        offset + 2
+    } else if rest.starts_with('\r') || rest.starts_with('\n') {
+        offset + 1
+    } else {
+        offset
+    }
+}
+
+fn headings(document: &str) -> Vec<Heading> {
+    let Some(root) = parse_markdown(document) else {
+        return Vec::new();
+    };
+    let Some(children) = root.children() else {
+        return Vec::new();
+    };
     let mut headings = Vec::new();
-    let mut offset = 0;
-    let mut fence: Option<(u8, usize)> = None;
 
-    for line in document.split_inclusive('\n') {
-        let text = line.trim_end_matches(['\r', '\n']);
-        let trimmed = text.trim_start_matches(' ');
-        let indentation = text.len() - trimmed.len();
-        let marker = trimmed.as_bytes().first().copied().unwrap_or_default();
-        let count = trimmed.bytes().take_while(|byte| *byte == marker).count();
-
-        if let Some((open_marker, open_count)) = fence {
-            if indentation <= 3
-                && marker == open_marker
-                && count >= open_count
-                && trimmed[count..].trim().is_empty()
-            {
-                fence = None;
-            }
-        } else if indentation <= 3
-            && matches!(marker, b'`' | b'~')
-            && count >= 3
-            && (marker != b'`' || !trimmed[count..].contains('`'))
-        {
-            fence = Some((marker, count));
-        } else if indentation == 0
-            && marker == b'#'
-            && (1..=6).contains(&count)
-            && (text.len() == count || text.as_bytes()[count].is_ascii_whitespace())
-        {
-            let title = trimmed[count..].trim();
-            let title = trim_closing_hashes(title);
-            headings.push(Heading {
-                title,
-                level: count,
-                start: offset,
-                body_start: offset + line.len(),
-            });
-        }
-
-        offset += line.len();
+    for node in children {
+        let Node::Heading(heading) = node else {
+            continue;
+        };
+        let Some(position) = heading.position.as_ref() else {
+            continue;
+        };
+        headings.push(Heading {
+            title: heading_text(node),
+            level: heading.depth,
+            start: position.start.offset,
+            body_start: after_line_ending(document, position.end.offset),
+        });
     }
 
     headings
-}
-
-fn trim_closing_hashes(title: &str) -> &str {
-    let without_hashes = title.trim_end_matches('#');
-    if without_hashes.len() < title.len() && without_hashes.ends_with([' ', '\t']) {
-        without_hashes.trim_end()
-    } else {
-        title
-    }
 }
 
 fn trailing_blank_lines_start(document: &str, position: usize) -> Range<usize> {
@@ -115,13 +119,25 @@ fn newline(document: &str) -> &'static str {
 
 fn rendered_package_entry(package: &PackageMetadata) -> String {
     let name = package.name.trim();
-    let name_link = match package
+    let name_node = match package
         .repository
         .as_deref()
         .filter(|value| !value.trim().is_empty())
     {
-        Some(repository) => format!("[{name}]({repository})"),
-        None => format!("`{name}`"),
+        Some(repository) => Node::Link(Link {
+            children: vec![Node::Text(Text {
+                value: name.to_owned(),
+                position: None,
+            })],
+            position: None,
+            url: repository.to_owned(),
+            title: None,
+        }),
+        None => Node::InlineCode(InlineCode {
+            value: name.to_owned(),
+            position: None,
+            lang: None,
+        }),
     };
     let description = package
         .description
@@ -129,13 +145,47 @@ fn rendered_package_entry(package: &PackageMetadata) -> String {
         .map(str::split_whitespace)
         .map(|words| words.collect::<Vec<_>>())
         .filter(|words| !words.is_empty())
-        .map(|words| format!(" — {}", words.join(" ")))
-        .unwrap_or_default();
+        .map(|words| words.join(" "));
 
-    format!("- {name_link}{description} <!-- bake-readme:package -->")
+    let mut children = vec![name_node];
+    if let Some(description) = description {
+        children.push(Node::Text(Text {
+            value: format!(" — {description}"),
+            position: None,
+        }));
+    }
+    children.push(Node::Html(Html {
+        value: PACKAGE_MARKER.to_owned(),
+        position: None,
+    }));
+
+    let options = MarkdownOptions {
+        bullet: '-',
+        ..MarkdownOptions::default()
+    };
+
+    Node::List(List {
+        children: vec![Node::ListItem(ListItem {
+            children: vec![Node::Paragraph(Paragraph {
+                children,
+                position: None,
+            })],
+            position: None,
+            spread: false,
+            checked: None,
+        })],
+        position: None,
+        ordered: false,
+        start: None,
+        spread: false,
+    })
+    .to_markdown_with_options(&options)
+    .expect("generated package entries are valid Markdown")
+    .trim_end()
+    .to_owned()
 }
 
-fn section_end(document: &str, headings: &[Heading<'_>], index: usize) -> usize {
+fn section_end(document: &str, headings: &[Heading], index: usize) -> usize {
     let heading = &headings[index];
     headings
         .iter()
@@ -199,15 +249,71 @@ fn rendered_recent_releases(releases: &[Release], line_ending: &str) -> String {
 }
 
 fn marker_line(document: &str, range: Range<usize>, marker: &str) -> Option<(usize, usize)> {
-    let mut offset = range.start;
-    for line in document[range.clone()].split_inclusive('\n') {
-        let content = line.trim_end_matches(['\r', '\n']).trim();
-        if content == marker {
-            return Some((offset, offset + line.len()));
+    let root = parse_markdown(document)?;
+    let mut found = None;
+    root.walk(|node| {
+        if found.is_some() {
+            return;
         }
-        offset += line.len();
-    }
-    None
+        let Node::Html(html) = node else {
+            return;
+        };
+        if html.value.trim() != marker {
+            return;
+        }
+        let Some(position) = node.position() else {
+            return;
+        };
+        let offset = position.start.offset;
+        if offset < range.start || offset >= range.end {
+            return;
+        }
+        found = Some(source_line_range(document, offset));
+    });
+    found
+}
+
+fn source_line_range(document: &str, offset: usize) -> (usize, usize) {
+    let start = document[..offset]
+        .rfind('\n')
+        .map_or(0, |newline| newline + 1);
+    let end = document[offset..]
+        .find('\n')
+        .map_or(document.len(), |newline| offset + newline + 1);
+    (start, end)
+}
+
+fn contains_link_to(document: &str, range: Range<usize>, destination: &str) -> bool {
+    let Some(root) = parse_markdown(document) else {
+        return false;
+    };
+    let mut definitions = Vec::new();
+    root.walk(|node| {
+        if let Node::Definition(definition) = node
+            && definition.url == destination
+        {
+            definitions.push(definition.identifier.clone());
+        }
+    });
+    let mut found = false;
+    root.walk(|node| {
+        if found {
+            return;
+        }
+        let matches = match node {
+            Node::Link(link) => link.url == destination,
+            Node::LinkReference(reference) => definitions.contains(&reference.identifier),
+            _ => false,
+        };
+        if matches
+            && node
+                .position()
+                .is_some_and(|position| range.contains(&position.start.offset))
+        {
+            found = true;
+        }
+    });
+    found
 }
 
 fn replace_generated_releases(
@@ -291,26 +397,58 @@ fn update_see_also_section(document: &str, package: Option<&PackageMetadata>) ->
     {
         let end = section_end(document, &headings, index);
         let body = &document[heading.body_start..end];
-        if let Some((line_start, line_end, line_ending)) = body
-            .split_inclusive('\n')
-            .scan(heading.body_start, |offset, line| {
-                let start = *offset;
-                *offset += line.len();
-                Some((start, *offset, line))
-            })
-            .find_map(|(start, end, line)| {
-                line.contains("<!-- bake-readme:package -->").then(|| {
-                    let line_ending = if line.ends_with("\r\n") {
-                        "\r\n"
-                    } else if line.ends_with('\n') {
-                        "\n"
-                    } else {
-                        ""
-                    };
-                    (start, end, line_ending)
-                })
-            })
+        let repository_is_linked_elsewhere = package
+            .repository
+            .as_deref()
+            .filter(|repository| !repository.trim().is_empty())
+            .is_some_and(|repository| {
+                contains_link_to(document, 0..heading.start, repository)
+                    || contains_link_to(document, end..document.len(), repository)
+            });
+        if let Some((line_start, line_end)) =
+            marker_line(document, heading.body_start..end, PACKAGE_MARKER)
         {
+            let line = &document[line_start..line_end];
+            let line_ending = if line.ends_with("\r\n") {
+                "\r\n"
+            } else if line.ends_with('\n') {
+                "\n"
+            } else {
+                ""
+            };
+            if repository_is_linked_elsewhere
+                && package.repository.as_deref().is_some_and(|repository| {
+                    contains_link_to(document, line_start..line_end, repository)
+                })
+            {
+                let remaining_body = format!(
+                    "{}{}",
+                    &document[heading.body_start..line_start],
+                    &document[line_end..end]
+                );
+
+                if remaining_body.trim().is_empty() {
+                    let section_start = trailing_blank_lines_start(document, heading.start).start;
+                    let mut updated = String::with_capacity(document.len());
+                    updated.push_str(&document[..section_start]);
+                    if !updated.is_empty() && !updated.ends_with("\n\n") {
+                        if updated.ends_with('\n') {
+                            updated.push_str(newline);
+                        } else {
+                            updated.push_str(newline);
+                            updated.push_str(newline);
+                        }
+                    }
+                    updated.push_str(&document[end..]);
+                    return updated;
+                }
+
+                let mut updated = String::with_capacity(document.len());
+                updated.push_str(&document[..line_start]);
+                updated.push_str(&document[line_end..]);
+                return updated;
+            }
+
             let mut updated = String::with_capacity(document.len() + entry.len());
             updated.push_str(&document[..line_start]);
             updated.push_str(&entry);
@@ -319,8 +457,10 @@ fn update_see_also_section(document: &str, package: Option<&PackageMetadata>) ->
             return updated;
         }
 
-        if let Some(repository) = package.repository.as_deref()
-            && body.contains(repository)
+        if repository_is_linked_elsewhere
+            || package.repository.as_deref().is_some_and(|repository| {
+                contains_link_to(document, heading.body_start..end, repository)
+            })
         {
             return document.to_owned();
         }
@@ -358,6 +498,13 @@ fn update_see_also_section(document: &str, package: Option<&PackageMetadata>) ->
     let target = headings
         .iter()
         .find(|heading| heading.title == "Contributing");
+    if package
+        .repository
+        .as_deref()
+        .is_some_and(|repository| contains_link_to(document, 0..document.len(), repository))
+    {
+        return document.to_owned();
+    }
     let section = format!("## See Also{newline}{newline}{entry}");
 
     if let Some(target) = target {
@@ -418,7 +565,7 @@ pub fn ensure_releases_section(document: &str) -> String {
 
     let target = headings
         .iter()
-        .find(|heading| matches!(heading.title, "See Also" | "Contributing"));
+        .find(|heading| matches!(heading.title.as_str(), "See Also" | "Contributing"));
 
     let newline = newline(document);
     let section = RELEASES_SECTION.replace('\n', newline);
