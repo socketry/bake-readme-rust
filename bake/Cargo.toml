@@ -9,5 +9,5 @@ bake = "0.17.0"
 bake-agent-context = { version = "0.1.1" }
 bake-cargo = { version = "0.2.4" }
 bake-license = { version = "0.1.1" }
-bake-readme = { version = "0.1.2", path = ".." }
+bake-readme = { version = "0.1.3", path = ".." }
 bake-releases = { version = "0.2.1" }

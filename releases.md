@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.1.3
 
 - Update generated README sections with Markdown AST nodes while preserving existing package links.
 
