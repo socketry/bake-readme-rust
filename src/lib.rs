@@ -25,6 +25,44 @@ pub mod readme {
 
     use super::{metadata::read_project_package, recent_releases, update_document_with_releases};
 
+    trait TemporaryFile: Write {
+        fn set_permissions(&self, permissions: fs::Permissions) -> std::io::Result<()>;
+        fn sync_all(&self) -> std::io::Result<()>;
+    }
+
+    impl TemporaryFile for fs::File {
+        fn set_permissions(&self, permissions: fs::Permissions) -> std::io::Result<()> {
+            fs::File::set_permissions(self, permissions)
+        }
+
+        fn sync_all(&self) -> std::io::Result<()> {
+            fs::File::sync_all(self)
+        }
+    }
+
+    fn prepare_temporary_file(
+        file: &mut impl TemporaryFile,
+        path: &std::path::Path,
+        document: &str,
+    ) -> Result<()> {
+        file.write_all(document.as_bytes())?;
+        file.set_permissions(fs::metadata(path)?.permissions())?;
+        file.sync_all()?;
+        Ok(())
+    }
+
+    fn write_document_atomically(path: &std::path::Path, document: &str) -> Result<()> {
+        let directory = path
+            .parent()
+            .expect("a canonical readme file path should have a parent directory");
+        let mut temporary = tempfile::NamedTempFile::new_in(directory)?;
+        prepare_temporary_file(temporary.as_file_mut(), path, document)?;
+        temporary
+            .persist(path)
+            .map_err(|error| Error::from(error.error))?;
+        Ok(())
+    }
+
     /// Add recent release notes and Cargo package links to `readme.md` when needed.
     #[bake::task]
     pub fn update(
@@ -53,18 +91,10 @@ pub mod readme {
             return Ok(());
         }
 
-        let directory = path
-            .parent()
-            .ok_or_else(|| Error::new("readme file has no parent directory"))?;
-        let mut temporary = tempfile::NamedTempFile::new_in(directory)?;
-        temporary.write_all(updated.as_bytes())?;
-        temporary
-            .as_file()
-            .set_permissions(fs::metadata(&path)?.permissions())?;
-        temporary.as_file().sync_all()?;
-        temporary
-            .persist(&path)
-            .map_err(|error| Error::from(error.error))?;
-        Ok(())
+        write_document_atomically(&path, &updated)
     }
+
+    #[cfg(test)]
+    #[path = "readme_tests.rs"]
+    mod tests;
 }

@@ -39,24 +39,13 @@ repository URL. Existing authored sections and entries are preserved.
 
 A custom path is supported with `--path PATH`.
 
-### Agent Context
+## Releasing
 
-If you use Bake Agent Context, this crate also provides [Readme Structure](context/readme-structure.md), guidance for writing concise, human-focused project readmes. To install it in your project, add Bake Agent Context to the private `bake/` crate and link its task library:
-
-```toml
-[dependencies]
-bake-agent-context = "0.1"
-```
-
-```rust,ignore
-use bake_agent_context as _;
-```
-
-Then install this crate's context and refresh `agents.md`:
-
-```sh
-cargo bake agent:context:install --package bake-readme
-```
+Prepare a release with `cargo bake cargo:version:patch` (or `minor`, `major`,
+or `bump --version X.Y.Z`), then run `cargo bake cargo:release` and open a
+pull request. After review and merge, GitHub Actions publishes the release
+when the configured `crates-io` environment approves it. See the
+[Cargo publishing guide](https://github.com/socketry/bake-cargo-rust/blob/main/context/publishing.md).
 
 ## Releases
 
@@ -82,3 +71,7 @@ See [releases.md](releases.md) for the full release history.
 Please open an issue or pull request on [GitHub](https://github.com/socketry/bake-readme-rust).
 The [readme guidance](context/readme-structure.md) describes the intended scope and
 structure of project `readme.md` files.
+
+### Agent Context
+
+Before contributing, read `agents.md` and the relevant context files it links. If `agents.md` is missing or out of date, run `cargo bake agent:context:install` to install context from dependencies and update the index.

@@ -70,6 +70,12 @@ fn selects_the_three_most_recent_versioned_release_entries() {
 }
 
 #[test]
+fn returns_no_recent_releases_without_a_top_level_releases_heading() {
+    assert!(recent_releases("# Project\n\n## v1.0.0\n\n- Not under Releases.\n").is_empty());
+    assert!(recent_releases("## Releases\n\n### v1.0.0\n\n- Wrong heading depth.\n").is_empty());
+}
+
+#[test]
 fn includes_recent_releases_in_generated_section_before_contributing() {
     let releases = [Release {
         name: "v1.2.0".to_owned(),
@@ -184,6 +190,53 @@ fn task_updates_a_custom_readme_under_project_root() {
 }
 
 #[test]
+fn task_reports_a_missing_readme_path() {
+    let directory = tempfile::tempdir().unwrap();
+    let registry = bake::Registry::discover().unwrap();
+    let mut context = registry.context(directory.path());
+
+    assert!(context.call("readme:update", &[]).is_err());
+}
+
+#[test]
+fn task_reports_readme_read_errors() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::create_dir(directory.path().join("readme.md")).unwrap();
+    let registry = bake::Registry::discover().unwrap();
+    let mut context = registry.context(directory.path());
+
+    assert!(context.call("readme:update", &[]).is_err());
+}
+
+#[test]
+fn task_reports_invalid_cargo_manifest_errors() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(directory.path().join("readme.md"), "# Example\n").unwrap();
+    fs::write(
+        directory.path().join("Cargo.toml"),
+        "this is not valid TOML[",
+    )
+    .unwrap();
+    let registry = bake::Registry::discover().unwrap();
+    let mut context = registry.context(directory.path());
+
+    let error = context.call("readme:update", &[]).unwrap_err();
+
+    assert!(error.to_string().contains("cargo metadata failed"));
+}
+
+#[test]
+fn task_reports_invalid_release_file_encoding() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(directory.path().join("readme.md"), "# Example\n").unwrap();
+    fs::write(directory.path().join("releases.md"), [0xff]).unwrap();
+    let registry = bake::Registry::discover().unwrap();
+    let mut context = registry.context(directory.path());
+
+    assert!(context.call("readme:update", &[]).is_err());
+}
+
+#[test]
 fn task_reads_package_metadata_from_the_root_cargo_manifest() {
     let directory = tempfile::tempdir().unwrap();
     let manifest = directory.path().join("Cargo.toml");
@@ -223,4 +276,359 @@ fn task_reads_recent_releases_from_the_project_root() {
     let updated = fs::read_to_string(readme).unwrap();
     assert!(updated.contains("### v0.1.0\n\n- Initial release."));
     assert!(!updated.contains("### Unreleased"));
+}
+
+#[test]
+fn adds_metadata_entry_without_repository_as_inline_code() {
+    let metadata = PackageMetadata {
+        name: " local-crate ".to_owned(),
+        description: Some("  A   local crate.  ".to_owned()),
+        repository: None,
+    };
+
+    let updated = update_document("# Example\n", Some(&metadata));
+
+    assert!(updated.contains("- `local-crate` — A local crate. <!-- bake-readme:package -->"));
+}
+
+#[test]
+fn adds_metadata_entry_with_blank_repository_and_description() {
+    let metadata = PackageMetadata {
+        name: "local-crate".to_owned(),
+        description: Some(" \n\t ".to_owned()),
+        repository: Some("  ".to_owned()),
+    };
+
+    let updated = update_document("# Example\n", Some(&metadata));
+
+    assert!(updated.contains("- `local-crate` <!-- bake-readme:package -->"));
+}
+
+#[test]
+fn inserts_metadata_entry_into_an_existing_see_also_section() {
+    let metadata = PackageMetadata {
+        name: "example-crate".to_owned(),
+        description: None,
+        repository: Some("https://example.com/source".to_owned()),
+    };
+    let original = "# Example\n\n## See Also\n\n- [Related](https://example.com/related)\n";
+
+    let updated = update_document(original, Some(&metadata));
+
+    assert!(
+        updated
+            .contains("- [example-crate](https://example.com/source) <!-- bake-readme:package -->")
+    );
+    assert!(updated.contains("- [Related](https://example.com/related)"));
+}
+
+#[test]
+fn appends_see_also_when_there_is_no_contributing_section() {
+    let metadata = PackageMetadata {
+        name: "example-crate".to_owned(),
+        description: None,
+        repository: None,
+    };
+
+    let updated = update_document("# Example", Some(&metadata));
+
+    assert!(updated.contains("## See Also\n\n- `example-crate` <!-- bake-readme:package -->"));
+}
+
+#[test]
+fn avoids_adding_package_link_when_source_is_already_linked_outside_see_also() {
+    let metadata = PackageMetadata {
+        name: "example-crate".to_owned(),
+        description: None,
+        repository: Some("https://example.com/source".to_owned()),
+    };
+    let original =
+        "# Example\n\nSource: [repository](https://example.com/source).\n\n## Contributing\n";
+
+    let updated = update_document(original, Some(&metadata));
+
+    assert!(!updated.contains("## See Also"));
+    assert!(!updated.contains("bake-readme:package"));
+}
+
+#[test]
+fn avoids_adding_package_link_when_source_uses_a_reference_link() {
+    let metadata = PackageMetadata {
+        name: "example-crate".to_owned(),
+        description: None,
+        repository: Some("https://example.com/source".to_owned()),
+    };
+    let original =
+        "# Example\n\nSource: [repository][source].\n\n[source]: https://example.com/source\n";
+
+    let updated = update_document(original, Some(&metadata));
+
+    assert!(!updated.contains("## See Also"));
+    assert!(!updated.contains("bake-readme:package"));
+}
+
+#[test]
+fn removes_generated_see_also_section_when_its_source_link_is_repeated_elsewhere() {
+    let metadata = PackageMetadata {
+        name: "example-crate".to_owned(),
+        description: None,
+        repository: Some("https://example.com/source".to_owned()),
+    };
+    let original = "# Example\n\n## See Also\n\n- [example-crate](https://example.com/source) <!-- bake-readme:package -->\n\n## Contributing\n\nSource: [repository](https://example.com/source).\n";
+
+    let updated = update_document(original, Some(&metadata));
+
+    assert!(!updated.contains("## See Also"));
+    assert!(updated.contains("## Contributing"));
+}
+
+#[test]
+fn removes_generated_see_also_section_at_the_document_start() {
+    let metadata = PackageMetadata {
+        name: "example-crate".to_owned(),
+        description: None,
+        repository: Some("https://example.com/source".to_owned()),
+    };
+    let original = "## See Also\n\n- [example-crate](https://example.com/source) <!-- bake-readme:package -->\n\n## Contributing\nSource: [repository](https://example.com/source).\n";
+
+    let updated = update_document(original, Some(&metadata));
+
+    assert!(!updated.contains("## See Also"));
+    assert!(updated.starts_with("## Releases\n"));
+}
+
+#[test]
+fn removes_only_generated_see_also_entry_when_manual_entries_remain() {
+    let metadata = PackageMetadata {
+        name: "example-crate".to_owned(),
+        description: None,
+        repository: Some("https://example.com/source".to_owned()),
+    };
+    let original = "# Example\n\n## See Also\n\n- [Related](https://example.com/related)\n- [example-crate](https://example.com/source) <!-- bake-readme:package -->\n\n## Contributing\n\nSource: [repository](https://example.com/source).\n";
+
+    let updated = update_document(original, Some(&metadata));
+
+    assert!(updated.contains("## See Also"));
+    assert!(updated.contains("- [Related](https://example.com/related)"));
+    assert!(!updated.contains("bake-readme:package"));
+}
+
+#[test]
+fn inserts_entry_into_empty_see_also_section() {
+    let metadata = PackageMetadata {
+        name: "example-crate".to_owned(),
+        description: None,
+        repository: None,
+    };
+
+    let updated = update_document("# Example\n\n## See Also\n", Some(&metadata));
+
+    assert!(updated.contains("## See Also\n\n- `example-crate` <!-- bake-readme:package -->"));
+}
+
+#[test]
+fn inserts_entry_before_content_without_a_trailing_newline() {
+    let metadata = PackageMetadata {
+        name: "example-crate".to_owned(),
+        description: None,
+        repository: None,
+    };
+
+    let updated = update_document("## See Also\nExisting content", Some(&metadata));
+
+    assert!(updated.contains(
+        "## See Also\n\n- `example-crate` <!-- bake-readme:package -->\n\nExisting content"
+    ));
+}
+
+#[test]
+fn inserts_see_also_before_contributing_with_one_preceding_newline() {
+    let metadata = PackageMetadata {
+        name: "example-crate".to_owned(),
+        description: None,
+        repository: None,
+    };
+
+    let updated = update_document("# Example\n## Contributing\n", Some(&metadata));
+
+    assert!(updated.contains("## Releases\n\nSee [releases.md]"));
+    assert!(updated.contains("## See Also\n\n- `example-crate` <!-- bake-readme:package -->"));
+    assert!(updated.contains("## Contributing"));
+    assert!(updated.find("## Releases").unwrap() < updated.find("## See Also").unwrap());
+}
+
+#[test]
+fn inserts_see_also_before_a_document_start_contributing_heading() {
+    let metadata = PackageMetadata {
+        name: "example-crate".to_owned(),
+        description: None,
+        repository: None,
+    };
+
+    let updated = update_document("## Contributing\n", Some(&metadata));
+
+    assert!(updated.starts_with("## Releases\n\nSee [releases.md]"));
+    assert!(updated.contains("## See Also\n\n- `example-crate` <!-- bake-readme:package -->"));
+    assert!(updated.contains("## Contributing"));
+}
+
+#[test]
+fn appends_see_also_with_existing_blank_lines_and_crlf() {
+    let metadata = PackageMetadata {
+        name: "example-crate".to_owned(),
+        description: None,
+        repository: None,
+    };
+
+    let lf_updated = update_document("# Example\n\n", Some(&metadata));
+    assert!(lf_updated.contains("# Example\n\n## Releases\n"));
+
+    let crlf_updated = update_document("# Example\r\nDescription", Some(&metadata));
+    assert!(crlf_updated.contains("\r\n\r\n## Releases\r\n"));
+    assert!(!crlf_updated.replace("\r\n", "").contains('\n'));
+}
+
+#[test]
+fn refreshes_generated_entry_without_a_trailing_newline() {
+    let metadata = PackageMetadata {
+        name: "new-name".to_owned(),
+        description: Some("Current description.".to_owned()),
+        repository: Some("https://example.com/source".to_owned()),
+    };
+    let original =
+        "## See Also\n- [old-name](https://example.com/old) <!-- bake-readme:package -->";
+
+    let updated = update_document(original, Some(&metadata));
+
+    assert!(updated.contains(
+        "- [new-name](https://example.com/source) — Current description. <!-- bake-readme:package -->"
+    ));
+}
+
+#[test]
+fn refreshes_generated_entry_with_crlf_line_endings() {
+    let metadata = PackageMetadata {
+        name: "new-name".to_owned(),
+        description: None,
+        repository: Some("https://example.com/source".to_owned()),
+    };
+    let original =
+        "## See Also\r\n\r\n- [old-name](https://example.com/old) <!-- bake-readme:package -->\r\n";
+
+    let updated = update_document(original, Some(&metadata));
+
+    assert!(updated.contains("## See Also\r\n\r\n- [new-name](https://example.com/source)"));
+    assert!(!updated.replace("\r\n", "").contains('\n'));
+}
+
+#[test]
+fn upgrades_legacy_generated_releases_link() {
+    let document = "# Example\n\n## Releases\n\nSee [releases.md](releases.md) for the release history.\n\n## Contributing\n";
+    let releases = [Release {
+        name: "v1.0.0".to_owned(),
+        notes: "- Initial release.".to_owned(),
+    }];
+
+    let updated = update_document_with_releases(document, None, &releases);
+
+    assert!(updated.contains("<!-- bake-readme:releases:start -->"));
+    assert!(updated.contains("### v1.0.0\n\n- Initial release."));
+    assert!(updated.contains("<!-- bake-readme:releases:end -->"));
+}
+
+#[test]
+fn leaves_releases_section_unchanged_when_markers_are_reversed_or_incomplete() {
+    let releases = [Release {
+        name: "v1.0.0".to_owned(),
+        notes: "- Initial release.".to_owned(),
+    }];
+
+    for document in [
+        "## Releases\n<!-- bake-readme:releases:end -->\nOld text\n<!-- bake-readme:releases:start -->\n",
+        "## Releases\n<!-- bake-readme:releases:start -->\nOld text\n",
+    ] {
+        assert_eq!(
+            update_document_with_releases(document, None, &releases),
+            document
+        );
+    }
+}
+
+#[test]
+fn ignores_release_markers_outside_the_generated_section() {
+    let document = "<!-- bake-readme:releases:start -->\n\n## Releases\n<!-- bake-readme:releases:start -->\nold\n<!-- bake-readme:releases:end -->\n";
+    let releases = [Release {
+        name: "v1.0.0".to_owned(),
+        notes: "- Initial release.".to_owned(),
+    }];
+
+    let updated = bake_readme::update_releases_section(document, &releases);
+
+    assert!(updated.starts_with("<!-- bake-readme:releases:start -->\n\n## Releases\n"));
+    assert!(updated.contains("### v1.0.0\n\n- Initial release."));
+    assert!(!updated.contains("\nold\n"));
+}
+
+#[test]
+fn renders_release_without_notes_and_preserves_crlf() {
+    let document = "## Releases\r\n<!-- bake-readme:releases:start -->\r\nold\r\n<!-- bake-readme:releases:end -->\r\n";
+    let releases = [Release {
+        name: "v1.0.0".to_owned(),
+        notes: String::new(),
+    }];
+
+    let updated = update_document_with_releases(document, None, &releases);
+
+    assert!(updated.contains("### v1.0.0\r\n<!-- bake-readme:releases:end -->"));
+    assert!(!updated.replace("\r\n", "").contains('\n'));
+}
+
+#[test]
+fn inserts_releases_section_before_see_also_and_handles_spacing() {
+    let cases = [
+        (
+            "# Example\n## See Also\n",
+            "# Example\n\n## Releases\n\nSee [releases.md](releases.md) for the release history.\n\n## See Also\n",
+        ),
+        (
+            "# Example\n\n## Contributing\n",
+            "# Example\n\n## Releases\n\nSee [releases.md](releases.md) for the release history.\n\n## Contributing\n",
+        ),
+    ];
+
+    for (document, expected) in cases {
+        assert_eq!(ensure_releases_section(document), expected);
+    }
+}
+
+#[test]
+fn appends_releases_section_for_empty_and_already_spaced_documents() {
+    assert_eq!(
+        ensure_releases_section(""),
+        "## Releases\n\nSee [releases.md](releases.md) for the release history.\n"
+    );
+    assert_eq!(
+        ensure_releases_section("# Example\n\n"),
+        "# Example\n\n## Releases\n\nSee [releases.md](releases.md) for the release history.\n"
+    );
+    assert_eq!(
+        ensure_releases_section("# Example\n"),
+        "# Example\n\n## Releases\n\nSee [releases.md](releases.md) for the release history.\n"
+    );
+    assert_eq!(
+        ensure_releases_section("# Example\r\nDescription"),
+        "# Example\r\nDescription\r\n\r\n## Releases\r\n\r\nSee [releases.md](releases.md) for the release history.\r\n"
+    );
+}
+
+#[test]
+fn inserts_releases_section_at_the_start_and_before_a_tightly_spaced_heading() {
+    assert_eq!(
+        ensure_releases_section("## Contributing\n"),
+        "## Releases\n\nSee [releases.md](releases.md) for the release history.\n\n## Contributing\n"
+    );
+    assert_eq!(
+        ensure_releases_section("# Example\n## Contributing\n"),
+        "# Example\n\n## Releases\n\nSee [releases.md](releases.md) for the release history.\n\n## Contributing\n"
+    );
 }

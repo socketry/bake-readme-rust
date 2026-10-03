@@ -42,23 +42,17 @@ pub struct Release {
     pub notes: String,
 }
 
-fn parse_markdown(document: &str) -> Option<Node> {
-    to_mdast(document, &ParseOptions::default()).ok()
+fn parse_markdown(document: &str) -> Node {
+    to_mdast(document, &ParseOptions::default())
+        .expect("CommonMark input should always parse into an AST")
 }
 
 fn heading_text(node: &Node) -> String {
-    let text = node.text_content();
-    text.strip_suffix("\r\n")
-        .or_else(|| text.strip_suffix('\n'))
-        .or_else(|| text.strip_suffix('\r'))
-        .unwrap_or(text.as_str())
-        .to_owned()
+    node.text_content()
 }
 
 fn after_line_ending(document: &str, offset: usize) -> usize {
-    let Some(rest) = document.get(offset..) else {
-        return offset;
-    };
+    let rest = &document[offset..];
 
     if rest.starts_with("\r\n") {
         offset + 2
@@ -70,21 +64,20 @@ fn after_line_ending(document: &str, offset: usize) -> usize {
 }
 
 fn headings(document: &str) -> Vec<Heading> {
-    let Some(root) = parse_markdown(document) else {
-        return Vec::new();
-    };
-    let Some(children) = root.children() else {
-        return Vec::new();
-    };
+    let root = parse_markdown(document);
+    let children = root
+        .children()
+        .expect("a Markdown document AST should be a root node");
     let mut headings = Vec::new();
 
     for node in children {
         let Node::Heading(heading) = node else {
             continue;
         };
-        let Some(position) = heading.position.as_ref() else {
-            continue;
-        };
+        let position = heading
+            .position
+            .as_ref()
+            .expect("parsed Markdown headings should include source positions");
         headings.push(Heading {
             title: heading_text(node),
             level: heading.depth,
@@ -249,7 +242,7 @@ fn rendered_recent_releases(releases: &[Release], line_ending: &str) -> String {
 }
 
 fn marker_line(document: &str, range: Range<usize>, marker: &str) -> Option<(usize, usize)> {
-    let root = parse_markdown(document)?;
+    let root = parse_markdown(document);
     let mut found = None;
     root.walk(|node| {
         if found.is_some() {
@@ -261,9 +254,9 @@ fn marker_line(document: &str, range: Range<usize>, marker: &str) -> Option<(usi
         if html.value.trim() != marker {
             return;
         }
-        let Some(position) = node.position() else {
-            return;
-        };
+        let position = node
+            .position()
+            .expect("parsed Markdown nodes should include source positions");
         let offset = position.start.offset;
         if offset < range.start || offset >= range.end {
             return;
@@ -284,9 +277,7 @@ fn source_line_range(document: &str, offset: usize) -> (usize, usize) {
 }
 
 fn contains_link_to(document: &str, range: Range<usize>, destination: &str) -> bool {
-    let Some(root) = parse_markdown(document) else {
-        return false;
-    };
+    let root = parse_markdown(document);
     let mut definitions = Vec::new();
     root.walk(|node| {
         if let Node::Definition(definition) = node
@@ -306,9 +297,13 @@ fn contains_link_to(document: &str, range: Range<usize>, destination: &str) -> b
             _ => false,
         };
         if matches
-            && node
-                .position()
-                .is_some_and(|position| range.contains(&position.start.offset))
+            && range.contains(
+                &node
+                    .position()
+                    .expect("parsed Markdown nodes should include source positions")
+                    .start
+                    .offset,
+            )
         {
             found = true;
         }
@@ -371,13 +366,11 @@ pub fn update_releases_section(document: &str, releases: &[Release]) -> String {
 
     let document = ensure_releases_section(document);
     let generated_headings = headings(&document);
-    let Some((index, heading)) = generated_headings
+    let (index, heading) = generated_headings
         .iter()
         .enumerate()
         .find(|(_, heading)| heading.title == "Releases")
-    else {
-        return document;
-    };
+        .expect("ensure_releases_section should create a Releases heading");
     let body = heading.body_start..section_end(&document, &generated_headings, index);
     replace_generated_releases(&document, body, releases).unwrap_or(document)
 }
@@ -431,13 +424,8 @@ fn update_see_also_section(document: &str, package: Option<&PackageMetadata>) ->
                     let section_start = trailing_blank_lines_start(document, heading.start).start;
                     let mut updated = String::with_capacity(document.len());
                     updated.push_str(&document[..section_start]);
-                    if !updated.is_empty() && !updated.ends_with("\n\n") {
-                        if updated.ends_with('\n') {
-                            updated.push_str(newline);
-                        } else {
-                            updated.push_str(newline);
-                            updated.push_str(newline);
-                        }
+                    if !updated.is_empty() {
+                        updated.push_str(newline);
                     }
                     updated.push_str(&document[end..]);
                     return updated;
@@ -517,12 +505,8 @@ fn update_see_also_section(document: &str, package: Option<&PackageMetadata>) ->
             .count();
         let leading = if insertion == 0 || preceding_newlines >= 2 {
             ""
-        } else if preceding_newlines == 1 {
-            newline
-        } else if newline == "\r\n" {
-            "\r\n\r\n"
         } else {
-            "\n\n"
+            newline
         };
         let mut updated = String::with_capacity(document.len() + section.len() + 8);
         updated.push_str(prefix);
@@ -533,18 +517,14 @@ fn update_see_also_section(document: &str, package: Option<&PackageMetadata>) ->
         updated.push_str(&document[target.start..]);
         updated
     } else {
-        let separator = if document.is_empty() || document.ends_with("\n\n") {
-            ""
-        } else if document.ends_with('\n') {
-            newline
-        } else if newline == "\r\n" {
-            "\r\n\r\n"
-        } else {
-            "\n\n"
-        };
         let mut updated = String::with_capacity(document.len() + section.len() + 4);
         updated.push_str(document);
-        updated.push_str(separator);
+        if !document.is_empty() && !document.ends_with("\n\n") {
+            updated.push_str(newline);
+            if !document.ends_with('\n') {
+                updated.push_str(newline);
+            }
+        }
         updated.push_str(&section);
         updated.push_str(newline);
         updated
@@ -580,14 +560,8 @@ pub fn ensure_releases_section(document: &str) -> String {
             .count();
         let leading = if insertion == 0 || preceding_newlines >= 2 {
             ""
-        } else if preceding_newlines == 1 {
-            newline
         } else {
-            if newline == "\r\n" {
-                "\r\n\r\n"
-            } else {
-                "\n\n"
-            }
+            newline
         };
         let mut updated = String::with_capacity(document.len() + section.len() + 8);
         updated.push_str(prefix);
@@ -598,19 +572,14 @@ pub fn ensure_releases_section(document: &str) -> String {
         updated.push_str(&document[target.start..]);
         updated
     } else {
-        let separator = if document.is_empty() || document.ends_with("\n\n") {
-            ""
-        } else if document.ends_with('\n') {
-            newline
-        } else if newline == "\r\n" {
-            "\r\n\r\n"
-        } else {
-            "\n\n"
-        };
-        let mut updated =
-            String::with_capacity(document.len() + section.len() + separator.len() + 1);
+        let mut updated = String::with_capacity(document.len() + section.len() + 2 * newline.len());
         updated.push_str(document);
-        updated.push_str(separator);
+        if !document.is_empty() && !document.ends_with("\n\n") {
+            updated.push_str(newline);
+            if !document.ends_with('\n') {
+                updated.push_str(newline);
+            }
+        }
         updated.push_str(&section);
         updated.push_str(newline);
         updated
@@ -635,3 +604,7 @@ pub fn update_document_with_releases(
     let updated = update_see_also_section(document, package);
     update_releases_section(&updated, releases)
 }
+
+#[cfg(test)]
+#[path = "document_tests.rs"]
+mod tests;
