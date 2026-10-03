@@ -1,5 +1,10 @@
 # Releases
 
+## Unreleased
+
+- Improve generated README spacing and document the standard release process.
+- Add context to errors when Cargo metadata cannot be launched.
+
 ## v0.1.3
 
 - Update generated README sections with Markdown AST nodes while preserving existing package links.

@@ -39,6 +39,14 @@ repository URL. Existing authored sections and entries are preserved.
 
 A custom path is supported with `--path PATH`.
 
+## Releasing
+
+Prepare a release with `cargo bake cargo:version:patch` (or `minor`, `major`,
+or `bump --version X.Y.Z`), then run `cargo bake cargo:release` and open a
+pull request. After review and merge, GitHub Actions publishes the release
+when the configured `crates-io` environment approves it. See the
+[Cargo publishing guide](https://github.com/socketry/bake-cargo-rust/blob/main/context/publishing.md).
+
 ## Releases
 
 <!-- bake-readme:releases:start -->

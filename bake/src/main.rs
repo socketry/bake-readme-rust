@@ -1,22 +1,38 @@
 // Released under the MIT License.
 // Copyright, 2026, by Samuel Williams.
 
-use bake::{Context, Registry, Result};
-use bake_agent_context as _;
-use bake_cargo as _;
-use bake_license as _;
-use bake_readme as _;
-use bake_releases as _;
+use socketry_project as _;
 
-/// Refresh `readme.md` and release notes after changing the Cargo version.
-#[bake::task(name = "cargo:after_version_bump")]
-fn after_version_bump(context: &mut Context, version: String) -> Result<()> {
-    context.call("license:update", &[])?;
-    context.call("releases:update", &[&format!("v{version}")])?;
-    context.call("readme:update", &[])?;
-    Ok(())
+#[cfg(not(test))]
+fn main() -> bake::Result<()> {
+    bake::Registry::discover()?.run()
 }
 
-fn main() -> Result<()> {
-    Registry::discover()?.run()
+#[cfg(test)]
+mod tests {
+    use bake::Registry;
+    use std::collections::HashSet;
+
+    #[test]
+    fn registers_standard_project_tasks_without_duplicates() {
+        let registry = Registry::discover().unwrap();
+        let task_names: Vec<_> = registry.tasks().map(|task| task.name()).collect();
+        let unique_task_names: HashSet<_> = task_names.iter().copied().collect();
+
+        assert_eq!(task_names.len(), unique_task_names.len());
+
+        for expected in [
+            "agent:context:install",
+            "cargo:after_version_bump",
+            "cargo:release",
+            "license:update",
+            "readme:update",
+            "releases:update",
+        ] {
+            assert!(
+                unique_task_names.contains(expected),
+                "missing task: {expected}"
+            );
+        }
+    }
 }

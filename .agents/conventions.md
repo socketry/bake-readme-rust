@@ -1,4 +1,4 @@
-# Repository Conventions
+# Conventions
 
 - Keep public README task behavior in `src/` and its behavioral guidance in `readme.md`.
 - Preserve existing README bytes when no update is needed.
