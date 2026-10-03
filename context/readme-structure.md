@@ -17,7 +17,7 @@ Keep the readme short and arrange sections in the order a new reader needs them:
 1. **Project name and summary** — a clear title followed by one or two sentences describing the problem solved and the project's role.
 2. **Motivation (optional)** — include it when explaining the problem and why the project exists would add useful context. Keep it specific and brief.
 3. **Usage** — show installation and one or two small, representative examples. Link to guides for complete examples or less common use cases.
-4. **Releasing** — include the standard short explanation below for projects using Bake Cargo. Link to the Cargo publishing guide for details.
+4. **Releasing** — include the standard short explanation below for projects using Bake Cargo. Link to the shared Releasing skill for details.
 5. **Releases** — show a short summary of recent releases and link to `releases.md` for the full history. Keep release sections newest first; `bake-readme` summarizes the first three versioned entries and skips `Unreleased`.
 6. **See Also** — link to related projects, APIs, or documentation. For Cargo packages, `bake-readme` can add the package name, description, and repository URL from `Cargo.toml` when that source link is not already present elsewhere in the readme.
 7. **Contributing** — use the standard short block shown below, with the repository link filled in. If the package publishes agent context, add the optional standard `### Agent Context` subsection below it. Put detailed contribution instructions elsewhere.
@@ -50,8 +50,9 @@ Show how to install or add the project, then give a small common example.
 Prepare a release with `cargo bake cargo:version:patch` (or `minor`, `major`,
 or `bump --version X.Y.Z`), then run `cargo bake cargo:release` and open a
 pull request. After review and merge, GitHub Actions publishes the release
-when the configured `crates-io` environment approves it. See the
-[Cargo publishing guide](https://github.com/socketry/bake-cargo-rust/blob/main/context/publishing.md).
+when the configured `crates-io` environment approves it. Follow the shared
+[Releasing skill](https://github.com/socketry/socketry-project-rust/blob/main/context/releasing.md)
+for the standard process.
 
 ## Releases
 
