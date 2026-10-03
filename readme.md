@@ -52,6 +52,11 @@ when the configured `crates-io` environment approves it. See the
 <!-- bake-readme:releases:start -->
 See [releases.md](releases.md) for the full release history.
 
+### v0.1.4
+
+- Improve generated README spacing and document the standard release process.
+- Add context to errors when Cargo metadata cannot be launched.
+
 ### v0.1.3
 
 - Update generated README sections with Markdown AST nodes while preserving existing package links.
@@ -60,10 +65,6 @@ See [releases.md](releases.md) for the full release history.
 
 - Create or update GitHub Releases after successful crates.io publication.
 - Resolve the local task crate during version updates.
-
-### v0.1.1
-
-- Switch the runtime dependency from `socketry-bake` to `bake` 0.17.0.
 <!-- bake-readme:releases:end -->
 
 ## Contributing
