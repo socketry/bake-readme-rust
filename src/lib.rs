@@ -16,8 +16,7 @@ pub use document::{
     update_document_with_releases, update_releases_section,
 };
 
-/// Tasks exported by this package register beneath the `readme` namespace.
-pub mod readme {
+mod readme_support {
     use bake::{Context, Error, Result};
     use std::fs;
     use std::io::Write;
@@ -64,15 +63,7 @@ pub mod readme {
     }
 
     /// Add recent release notes and Cargo package links to `readme.md` when needed.
-    #[bake::task]
-    pub fn update(
-        context: &mut Context,
-        #[bake(
-            default = "readme.md",
-            help = "readme file relative to the project root."
-        )]
-        path: PathBuf,
-    ) -> Result<()> {
+    pub(super) fn update(context: &mut Context, path: PathBuf) -> Result<()> {
         let path = context.root().join(path).canonicalize()?;
         let document = fs::read_to_string(&path)
             .map_err(|error| Error::new(format!("{}: {error}", path.display())))?;
@@ -97,4 +88,17 @@ pub mod readme {
     #[cfg(test)]
     #[path = "readme_tests.rs"]
     mod tests;
+}
+
+/// Add recent release notes and Cargo package links to `readme.md` when needed.
+#[bake::task]
+pub fn update(
+    context: &mut bake::Context,
+    #[bake(
+        default = "readme.md",
+        help = "readme file relative to the project root."
+    )]
+    path: std::path::PathBuf,
+) -> bake::Result<()> {
+    readme_support::update(context, path)
 }
