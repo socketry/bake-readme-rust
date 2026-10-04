@@ -1,5 +1,10 @@
 # Releases
 
+## Unreleased
+
+- Remove the redundant `bake_readme::readme` module; the task adapter is now
+  available at `bake_readme::update`.
+
 ## v0.1.6
 
 - Declare compatibility with the Bake 0.x API so task libraries can share one task registry
