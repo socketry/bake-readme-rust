@@ -53,6 +53,11 @@ for the standard process.
 <!-- bake-readme:releases:start -->
 See [releases.md](releases.md) for the full release history.
 
+### v0.2.0
+
+- Remove the redundant `bake_readme::readme` module; the task adapter is now
+  available at `bake_readme::update`.
+
 ### v0.1.6
 
 - Declare compatibility with the Bake 0.x API so task libraries can share one task registry
@@ -62,11 +67,6 @@ See [releases.md](releases.md) for the full release history.
 
 - Use the shared `socketry-project` Releasing skill for the standard release
   process and remove references to the duplicate Bake Cargo publishing context.
-
-### v0.1.4
-
-- Improve generated README spacing and document the standard release process.
-- Add context to errors when Cargo metadata cannot be launched.
 <!-- bake-readme:releases:end -->
 
 ## Contributing
