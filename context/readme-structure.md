@@ -69,7 +69,7 @@ Please open an issue or pull request on [GitHub](https://github.com/OWNER/REPOSI
 <!-- Include this subsection only when the crate publishes files in context/. -->
 ### Agent Context
 
-Before contributing, read `agents.md` and the relevant context files it links. If `agents.md` is missing or out of date, run `cargo bake agent:context:install` to install context from dependencies and update the index.
+Run `cargo bake agent:context:install` to install shared context and skills. Read `.agents/context/index.md` to find relevant guides, follow `agents.md` if present, and apply skills under `.agents/skills/`. The installer preserves repository-owned `agents.md`; it does not create or regenerate that file.
 ```
 
 Replace `OWNER/REPOSITORY` with the source repository. Use the Releasing paragraph verbatim for projects using Bake Cargo. The Agent Context subsection is fixed boilerplate; omit the entire subsection when the crate does not publish context. The Contributing paragraph is also standard boilerplate; retain it for public projects and change only the repository link.
