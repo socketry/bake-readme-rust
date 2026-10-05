@@ -36,6 +36,10 @@ Prepare a release with `cargo bake cargo:version:patch` (or `minor`, `major`, or
 
 See [releases.md](releases.md) for the full release history.
 
+### v0.2.4
+
+- Document generated task links and related project references.
+
 ### v0.2.3
 
 - Adopt `socketry-project` 0.3.7 for shared project tasks and Markdown normalization.
@@ -45,10 +49,6 @@ See [releases.md](releases.md) for the full release history.
 ### v0.2.2
 
 - Keep the Bake dependency open-ended from 0.18 so task libraries share their project's active task registry.
-
-### v0.2.1
-
-- Require Bake 0.18.0 for the shared task registry.
 
 <!-- bake-readme:releases:end -->
 

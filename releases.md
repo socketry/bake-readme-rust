@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.2.4
 
 - Document generated task links and related project references.
 
