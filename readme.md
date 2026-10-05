@@ -53,6 +53,11 @@ for the standard process.
 <!-- bake-readme:releases:start -->
 See [releases.md](releases.md) for the full release history.
 
+### v0.2.2
+
+- Keep the Bake dependency open-ended from 0.18 so task libraries share their
+  project's active task registry.
+
 ### v0.2.1
 
 - Require Bake 0.18.0 for the shared task registry.
@@ -61,11 +66,6 @@ See [releases.md](releases.md) for the full release history.
 
 - Remove the redundant `bake_readme::readme` module; the task adapter is now
   available at `bake_readme::update`.
-
-### v0.1.6
-
-- Declare compatibility with the Bake 0.x API so task libraries can share one task registry
-  when upgrading to crate-derived task namespaces.
 <!-- bake-readme:releases:end -->
 
 ## Contributing

@@ -1,5 +1,10 @@
 # Releases
 
+## v0.2.2
+
+- Keep the Bake dependency open-ended from 0.18 so task libraries share their
+  project's active task registry.
+
 ## v0.2.1
 
 - Require Bake 0.18.0 for the shared task registry.
