@@ -8,15 +8,12 @@ A project's `readme.md` should help people quickly understand what the project d
 
 ## Usage
 
-Add this crate to the project's private Bake task executable and link its task library:
+Add this crate to the project's private Bake task executable and regenerate its task links:
 
-```toml
-[dependencies]
-bake-readme = "0.2"
-```
-
-```rust,ignore
-use bake_readme as _;
+```sh
+cargo bake --regenerate
+cargo add --manifest-path bake/Cargo.toml bake-readme
+cargo bake --regenerate
 ```
 
 Then run the task from the project root:
@@ -39,6 +36,10 @@ Prepare a release with `cargo bake cargo:version:patch` (or `minor`, `major`, or
 
 See [releases.md](releases.md) for the full release history.
 
+### v0.2.4
+
+- Document generated task links and related project references.
+
 ### v0.2.3
 
 - Adopt `socketry-project` 0.3.7 for shared project tasks and Markdown normalization.
@@ -49,11 +50,12 @@ See [releases.md](releases.md) for the full release history.
 
 - Keep the Bake dependency open-ended from 0.18 so task libraries share their project's active task registry.
 
-### v0.2.1
-
-- Require Bake 0.18.0 for the shared task registry.
-
 <!-- bake-readme:releases:end -->
+
+## See Also
+
+- [`bake`](https://github.com/socketry/bake-rust).
+- [`bake-releases`](https://github.com/socketry/bake-releases-rust).
 
 ## Contributing
 
