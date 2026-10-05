@@ -1,5 +1,9 @@
 # Releases
 
+## v0.2.1
+
+- Require Bake 0.18.0 for the shared task registry.
+
 ## v0.2.0
 
 - Remove the redundant `bake_readme::readme` module; the task adapter is now
