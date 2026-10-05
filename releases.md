@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+- Document generated task links and related project references.
+
 ## v0.2.3
 
 - Adopt `socketry-project` 0.3.7 for shared project tasks and Markdown normalization.
